@@ -8,6 +8,33 @@ from pathlib import Path
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkX11
 
+
+def read_cpu_temperature(hwmon_root=Path('/sys/class/hwmon')):
+    for hw in sorted(hwmon_root.glob('hwmon*')):
+        try:
+            driver = (hw / 'name').read_text().strip()
+        except OSError:
+            continue
+        if driver not in ('coretemp', 'k10temp'):
+            continue
+        preferred = ('Tdie', 'Tctl') if driver == 'k10temp' else ('Package id 0',)
+        inputs = {}
+        for label in hw.glob('temp*_label'):
+            try:
+                inputs[label.read_text().strip()] = label.with_name(
+                    label.name.replace('_label', '_input'))
+            except OSError:
+                continue
+        candidates = [inputs[label] for label in preferred if label in inputs]
+        candidates.append(hw / 'temp1_input')
+        for candidate in candidates:
+            try:
+                return int(candidate.read_text()) / 1000
+            except (OSError, ValueError):
+                continue
+    return None
+
+
 class Monitor(Gtk.Window):
     def __init__(self):
         super().__init__(title='迷你资源监控')
@@ -204,13 +231,8 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
             dt, di = total-self.last_cpu[0], idle-self.last_cpu[1]
             usage = 100*(dt-di)/dt if dt else 0
         self.last_cpu = (total, idle)
-        temp = ''
-        for hw in Path('/sys/class/hwmon').glob('hwmon*'):
-            try:
-                if (hw/'name').read_text().strip() == 'coretemp':
-                    temp = f" · {int((hw/'temp1_input').read_text())/1000:.0f}°C"
-            except OSError:
-                pass
+        temperature = read_cpu_temperature()
+        temp = f' · {temperature:.0f}°C' if temperature is not None else ''
         self.update_row('cpu', f'{usage:.0f}%{temp}', usage)
         mem = {line.split(':')[0]: int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
         used = mem['MemTotal']-mem['MemAvailable']

@@ -6,7 +6,7 @@ A compact, draggable Linux desktop widget for CPU, memory, GPU and VRAM usage. I
 
 ## Features / 功能
 
-- CPU usage and package temperature when a `coretemp` sensor is available.
+- CPU usage and temperature from Intel `coretemp` or AMD `k10temp` sensors.
 - System memory usage.
 - NVIDIA GPU utilization, temperature, and VRAM usage when `nvidia-smi` is available. GPU fields show an unavailable state otherwise.
 - Colored utilization bars, refreshed every two seconds.
@@ -14,7 +14,7 @@ A compact, draggable Linux desktop widget for CPU, memory, GPU and VRAM usage. I
 - Starts near the upper-right corner and can launch automatically after login.
 - Reads local kernel counters and the local NVIDIA driver only. It does not send telemetry over the network.
 
-- 显示 CPU 使用率；存在 `coretemp` 温度传感器时同时显示 CPU 温度。
+- 显示 CPU 使用率；支持 Intel `coretemp` 和 AMD `k10temp` 温度传感器。
 - 显示系统内存使用量。
 - 安装 NVIDIA 驱动且 `nvidia-smi` 可用时显示 GPU 使用率、温度和显存；否则显示不可用状态。
 - 彩色占用条，每两秒更新一次。
@@ -63,7 +63,7 @@ Uninstall removes this application's files and stops only its own running proces
 - The current implementation targets X11/XWayland because it uses XShape for clean rounded corners. Native Wayland support is not implemented.
 - Window stacking behavior is managed by the desktop window manager. The Pin button requests an always-above state; unpinned mode returns the widget to normal stacking.
 - GPU values are sampled with `nvidia-smi`; this is lightweight polling and does not run a model or GPU benchmark.
-- CPU temperature depends on available kernel hwmon sensors. This version looks for `coretemp` (common on Intel systems).
+- CPU temperature depends on available kernel hwmon sensors. Intel uses the package temperature from `coretemp`; AMD uses `k10temp`, preferring `Tdie` and falling back to `Tctl` when a separate die reading is unavailable.
 
 ## License
 
