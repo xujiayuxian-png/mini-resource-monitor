@@ -10,3 +10,4 @@ Terminal=false
 Categories=System;Monitor;
 Keywords=GPU;CPU;VRAM;Memory;Monitor;
 StartupNotify=false
+StartupWMClass=MiniResources

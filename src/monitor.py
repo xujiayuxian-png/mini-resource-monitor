@@ -19,16 +19,20 @@ class Monitor(Gtk.Window):
         self.set_resizable(False)
         self.set_accept_focus(True)
         self.set_focus_on_map(False)
+        self.set_type_hint(Gdk.WindowTypeHint.NORMAL)
+        self.set_urgency_hint(False)
         self.connect('size-allocate', self.round_shape)
         self.connect('realize', lambda *_: GLib.idle_add(self.round_shape))
+        self.connect('map-event', self.position_near_corner)
+        self.connect('configure-event', self.keep_in_workarea)
         self.set_skip_taskbar_hint(True)
         self.set_skip_pager_hint(True)
-        self.stick()
         self.set_keep_below(False)
         self.set_default_size(242, -1)
         self.set_name('monitor')
         self.last_cpu = None
         self.gpu_busy = False
+        self.last_shape = None
         css = Gtk.CssProvider()
         css.load_from_data(b'''
 #monitor { background: #18212b; color: #e6edf3; border-radius: 9px; }
@@ -64,7 +68,7 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
         self.pin = Gtk.ToggleButton()
         self.pin.set_name('pin')
         self.pin.set_label('置顶')
-        self.pin.set_tooltip_text('点击置顶；取消后置底')
+        self.pin.set_tooltip_text('点击置顶；取消后恢复普通窗口层级')
         self.pin.connect('toggled', self.toggle_pin)
         header.pack_end(self.pin, False, False, 0)
         box.pack_start(header, False, False, 0)
@@ -81,24 +85,46 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
             self.rows[key] = (value, bar)
         self.connect('destroy', Gtk.main_quit)
         self.show_all()
-        screen = self.get_screen()
-        monitor = screen.get_monitor_workarea(screen.get_primary_monitor())
-        self.move(monitor.x + monitor.width - 266, monitor.y + 40)
-        GLib.timeout_add(300, self.lower_window)
+        GLib.idle_add(self.position_near_corner)
         self.tick()
         GLib.timeout_add_seconds(2, self.tick)
 
-    def lower_window(self):
-        if self.get_window():
-            self.get_window().lower()
+    def position_near_corner(self, *_):
+        screen = self.get_screen()
+        monitor_index = screen.get_monitor_at_window(self.get_window()) if self.get_window() else screen.get_primary_monitor()
+        workarea = screen.get_monitor_workarea(monitor_index)
+        width = self.get_allocated_width() or 242
+        margin = 24
+        x = workarea.x + workarea.width - width - margin
+        y = workarea.y + margin
+        self.move(max(workarea.x, x), max(workarea.y, y))
+        return False
+
+    def keep_in_workarea(self, *_):
+        screen = self.get_screen()
+        monitor_index = screen.get_monitor_at_window(self.get_window()) if self.get_window() else screen.get_primary_monitor()
+        workarea = screen.get_monitor_workarea(monitor_index)
+        x, y = self.get_position()
+        width = self.get_allocated_width() or 242
+        height = self.get_allocated_height() or 182
+        target_x = max(workarea.x, min(x, workarea.x + workarea.width - width))
+        target_y = max(workarea.y, min(y, workarea.y + workarea.height - height))
+        if (target_x, target_y) != (x, y):
+            self.move(target_x, target_y)
         return False
 
     def round_shape(self, *_):
         window = self.get_window()
         if not window:
             return False
-        w, h = self.get_allocated_width(), self.get_allocated_height()
-        radius = 9
+        # GTK allocations are logical pixels; XShape expects device pixels.
+        scale = max(1, window.get_scale_factor())
+        w = self.get_allocated_width() * scale
+        h = self.get_allocated_height() * scale
+        shape = (window.get_xid(), w, h, scale)
+        if shape == self.last_shape:
+            return False
+        radius = 9 * scale
         class Rect(C.Structure):
             _fields_ = [('x', C.c_short), ('y', C.c_short), ('width', C.c_ushort), ('height', C.c_ushort)]
         rects = (Rect * h)()
@@ -115,6 +141,7 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
         if d:
             ext.XShapeCombineRectangles(d, window.get_xid(), 0, 0, 0, rects, h, 0, 0)
             x.XCloseDisplay(d)
+            self.last_shape = shape
         return False
 
     def over_pin(self, event):
@@ -145,18 +172,11 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
         pinned = button.get_active()
         button.set_label('已置顶' if pinned else '置顶')
         GLib.idle_add(self.apply_layer, pinned)
-        button.set_tooltip_text('已置顶，点击恢复置底' if pinned else '已置底，点击置顶')
+        button.set_tooltip_text('已置顶，点击恢复普通窗口层级' if pinned else '点击置顶')
 
     def apply_layer(self, pinned):
-        position = self.get_position()
-        self.hide()
-        self.unrealize()
         self.set_keep_above(pinned)
         self.set_keep_below(False)
-        self.show_all()
-        self.move(*position)
-        if not pinned:
-            GLib.timeout_add(120, self.lower_window)
         return False
 
     def update_row(self, key, text, percent):
@@ -200,5 +220,8 @@ progressbar progress { min-height: 4px; border: none; background: #73c9ef; }
             threading.Thread(target=self.gpu, daemon=True).start()
         return True
 
-Monitor()
-Gtk.main()
+if __name__ == '__main__':
+    GLib.set_prgname('mini-resource-monitor')
+    GLib.set_application_name('Mini Resource Monitor')
+    Monitor()
+    Gtk.main()
