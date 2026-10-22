@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Mini Resource Monitor
+Name[zh_CN]=迷你资源监控
+Comment=Start Mini Resource Monitor after desktop login
+Exec="@HOME@/.local/bin/mini-resource-monitor"
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5

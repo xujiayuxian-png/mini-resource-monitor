@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Mini Resource Monitor
+Name[zh_CN]=迷你资源监控
+Comment=Compact CPU, memory, GPU and VRAM monitor
+Comment[zh_CN]=紧凑显示 CPU、内存、GPU 和显存
+Exec="@HOME@/.local/bin/mini-resource-monitor"
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+Keywords=GPU;CPU;VRAM;Memory;Monitor;
+StartupNotify=false
